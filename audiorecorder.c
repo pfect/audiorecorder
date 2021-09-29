@@ -7,7 +7,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-
+#include <time.h>
 #include "audiorecorder.h"
 #include "log.h"
 
@@ -34,7 +34,7 @@ static GstBus *bus;
 static GstPad *teepad;
 static gboolean recording = FALSE;
 static gboolean unlinked = FALSE;
-static gint counter = 0;
+// static gint counter = 0;
 static char *file_path;
 
 
@@ -118,6 +118,18 @@ void stopRecording(void) {
 	recording = FALSE;
 }
 
+char *time_stamp(){
+	char *timestamp = (char *)malloc(sizeof(char) * 18);
+	memset(timestamp,0,18);
+	time_t ltime;
+	ltime=time(NULL);
+	struct tm *tm;
+	tm=localtime(&ltime);
+	sprintf(timestamp,"%04d%02d%02d_%02d%02d%02d", tm->tm_year+1900, tm->tm_mon, 
+		tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+	return timestamp;
+}
+
 void startRecording(void) {
 	log_info("[%d] Record start", getpid()); 
 	GstPad *sinkpad;
@@ -132,8 +144,10 @@ void startRecording(void) {
 	g_object_set (G_OBJECT ( encoder ), "bandwidth", 1103, NULL);	// 1101 narrowband 1102 medium band fullband (1105) 
 	muxer = gst_element_factory_make("oggmux", NULL);
 	filesink = gst_element_factory_make("filesink", NULL);
+	
 	char *file_name = (char*) malloc(255 * sizeof(char));
-	sprintf(file_name, "%s%d.opus", file_path, counter++);
+	sprintf(file_name, "%s.opus", time_stamp() );
+	
 	log_info("[%d] Recording to file: %s", getpid(),file_name);
 	g_object_set(filesink, "location", file_name, NULL);
 	free(file_name);
@@ -171,18 +185,8 @@ void sigintHandler(int unused) {
 int main(int argc, char *argv[])
 {
 
-	log_info("[%d] audiorecorder", getpid());
+	log_info("[%d] audiorecorder ", getpid());
 	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] ) ", getpid());
-
-	if (argc != 2) {
-		log_error("[%d] Filename missing.", getpid());
-		return -1;
-	}
-
-	if (strstr(argv[1],".opus") != NULL) {
-		g_printerr("Please specify folder path only.\nExample : ./a.out /home/xyz/Desktop/\n");	
-		return -1;
-	}
 
 	file_path = (char*) malloc(255 * sizeof(char));
 	file_path = argv[1];
