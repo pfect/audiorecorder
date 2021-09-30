@@ -26,17 +26,15 @@ See also:
 	https://github.com/sdroege/gst-snippets/blob/217ae015aaddfe3f7aa66ffc936ce93401fca04e/dynamic-filter.c
 	https://gstreamer.freedesktop.org/documentation/x264/index.html?gi-language=c#x264enc-page
 	* https://bash.cyberciti.biz/guide/Sending_signal_to_Processes
+	* https://oz9aec.net/software/gstreamer/pulseaudio-device-names
 */
 
 static GMainLoop *loop;
-static GstElement *pipeline, *src, *tee, *encoder, *muxer, *filesink, *audioconvert, *fakesink, *queue_record, *queue_fakesink;
+static GstElement *pipeline, *src,*src_audioconvert, *tee, *encoder, *muxer, *filesink, *audioconvert, *fakesink, *queue_record, *queue_fakesink;
 static GstBus *bus;
 static GstPad *teepad;
 static gboolean recording = FALSE;
 static gboolean unlinked = FALSE;
-// static gint counter = 0;
-static char *file_path;
-
 
 static gboolean
 message_cb (GstBus * l_bus, GstMessage * message, gpointer user_data)
@@ -130,6 +128,8 @@ char *time_stamp(){
 	return timestamp;
 }
 
+// https://github.com/Igalia/aura/blob/master/src/pipeline.cpp
+
 void startRecording(void) {
 	log_info("[%d] Record start", getpid()); 
 	GstPad *sinkpad;
@@ -138,6 +138,7 @@ void startRecording(void) {
 	templ = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(tee), "src_%u");
 	teepad = gst_element_request_pad(tee, templ, NULL, NULL);
 	queue_record = gst_element_factory_make("queue", "queue_record");
+	
 	encoder = gst_element_factory_make("opusenc", NULL);
 	g_object_set (G_OBJECT ( encoder ), "bitrate", 16000, NULL); 	// 6000 - 128000
 	g_object_set (G_OBJECT ( encoder ), "audio-type", 2048, NULL);	// 2048 = voice, 2049 = Generic
@@ -145,18 +146,26 @@ void startRecording(void) {
 	muxer = gst_element_factory_make("oggmux", NULL);
 	filesink = gst_element_factory_make("filesink", NULL);
 	
+		
+		
 	char *file_name = (char*) malloc(255 * sizeof(char));
 	sprintf(file_name, "%s.opus", time_stamp() );
 	
 	log_info("[%d] Recording to file: %s", getpid(),file_name);
 	g_object_set(filesink, "location", file_name, NULL);
 	free(file_name);
+	
+	
 
 	gst_bin_add_many(GST_BIN(pipeline), gst_object_ref(queue_record), gst_object_ref(encoder), gst_object_ref(muxer), gst_object_ref(filesink), NULL);
+	
 	gst_element_link_many(queue_record, encoder, muxer, filesink, NULL);
 
+	
 	gst_element_sync_state_with_parent(queue_record);
+	
 	gst_element_sync_state_with_parent(encoder);
+	
 	gst_element_sync_state_with_parent(muxer);
 	gst_element_sync_state_with_parent(filesink);
 
@@ -188,29 +197,27 @@ int main(int argc, char *argv[])
 	log_info("[%d] audiorecorder ", getpid());
 	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] ) ", getpid());
 
-	file_path = (char*) malloc(255 * sizeof(char));
-	file_path = argv[1];
-
 	signal(SIGCONT, sigintHandler); // SIGINT vs SIGCONT ( kill -18 [pid] ) 
 	gst_init (&argc, &argv);
 
 	pipeline = gst_pipeline_new(NULL);
-	src = gst_element_factory_make("audiotestsrc", NULL);
-	g_object_set(src, "do-timestamp", TRUE, NULL);
-
+	
+	src = gst_element_factory_make("pulsesrc", NULL); // pulsesrc audiotestsrc	
+	// g_object_set(src, "do-timestamp", TRUE, NULL);
+	
 	tee = gst_element_factory_make("tee", NULL);
+	audioconvert = gst_element_factory_make("audioconvert", NULL);	
 	queue_fakesink = gst_element_factory_make("queue", "queue_fakesink");
-	audioconvert = gst_element_factory_make("audioconvert", NULL);
 	fakesink = gst_element_factory_make("fakesink", NULL);
 
-	if (!pipeline || !src || !tee || !audioconvert || !fakesink || !queue_fakesink) {
+	if (!pipeline || !src  || !tee ||  !audioconvert || !fakesink || !queue_fakesink) {
 		log_error("[%d] Failed to create elements", getpid()); 
 		return -1;
 	}
 
 	gst_bin_add_many(GST_BIN(pipeline), src, tee, queue_fakesink, audioconvert, fakesink, NULL);
-	if (!gst_element_link_many(src, tee, NULL) 
-		|| !gst_element_link_many(tee, queue_fakesink,audioconvert,fakesink, NULL)) {
+
+	if (!gst_element_link_many(src, tee, NULL) || !gst_element_link_many(tee, queue_fakesink,audioconvert,fakesink, NULL)) {
 		log_error("[%d] Failed to link elements", getpid());
 		return -2;
 	}
