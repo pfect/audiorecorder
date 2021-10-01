@@ -9,7 +9,12 @@
 #include <unistd.h>
 #include <time.h>
 #include "audiorecorder.h"
+#include "ini.h"
 #include "log.h"
+
+#define INI_FILE "audiorecorder.ini"
+
+char *target_directory = "";
 
 /*
 
@@ -30,7 +35,7 @@ See also:
 */
 
 static GMainLoop *loop;
-static GstElement *pipeline, *src,*src_audioconvert, *tee, *encoder, *muxer, *filesink, *audioconvert, *fakesink, *queue_record, *queue_fakesink;
+static GstElement *pipeline, *src, *tee, *encoder, *muxer, *filesink, *audioconvert, *fakesink, *queue_record, *queue_fakesink;
 static GstBus *bus;
 static GstPad *teepad;
 static gboolean recording = FALSE;
@@ -196,6 +201,12 @@ int main(int argc, char *argv[])
 
 	log_info("[%d] audiorecorder ", getpid());
 	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] ) ", getpid());
+	
+	ini_t *config = ini_load(INI_FILE);
+	ini_sget(config, "audiorecorder", "targetdirectory", NULL, &target_directory);
+	log_trace("[%d] Target directory (%s) ",getpid(),target_directory);
+	
+	
 
 	signal(SIGCONT, sigintHandler); // SIGINT vs SIGCONT ( kill -18 [pid] ) 
 	gst_init (&argc, &argv);
