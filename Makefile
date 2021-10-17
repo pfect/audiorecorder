@@ -14,5 +14,5 @@ audiorecorder:	audiorecorder.c log.c ini.c
 
 clean:
 	rm -rf $(BINS)
-	rm *.o
+	rm *.opus
 
