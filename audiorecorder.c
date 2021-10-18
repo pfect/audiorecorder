@@ -197,11 +197,14 @@ int main(int argc, char *argv[])
 {
 	ini_t *config = ini_load(INI_FILE);
 	char *audiosrc;
+	char *audiodevice = NULL;
 	log_info("[%d] audiorecorder ", getpid());
 	ini_sget(config, "audiorecorder", "targetdirectory", NULL, &target_directory);
 	ini_sget(config, "audiorecorder", "audiosource", NULL, &audiosrc);
+	ini_sget(config, "audiorecorder", "audiodevice", NULL, &audiodevice);
+	
 	log_trace("[%d] target directory (%s) ",getpid(),target_directory);
-	log_trace("[%d] audio source (%s) ",getpid(),audiosrc);
+	log_trace("[%d] audio source: %s",getpid(),audiosrc);
 	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] or pkill -x -18 audiorecorder ) ", getpid());
 	
 	/* Create directories if they do not exist */
@@ -215,6 +218,13 @@ int main(int argc, char *argv[])
 	gst_init (&argc, &argv);
 	pipeline = gst_pipeline_new(NULL);
 	src = gst_element_factory_make(audiosrc, NULL); 
+	// ALSA device, as defined in an asound configuration file
+	if ( audiodevice != NULL ) 
+	{
+		g_object_set(src, "device", audiodevice, NULL);
+		log_trace("[%d] audio device: %s",getpid(),audiodevice);
+	}
+	
 	// g_object_set(src, "do-timestamp", TRUE, NULL);
 	tee = gst_element_factory_make("tee", NULL);
 	audioconvert = gst_element_factory_make("audioconvert", NULL);	
