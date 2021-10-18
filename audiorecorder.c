@@ -8,12 +8,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <time.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include "audiorecorder.h"
 #include "ini.h"
 #include "log.h"
 #define INI_FILE "audiorecorder.ini"
+#define FILEDIR_MAX_LEN	 200
 
 char *target_directory = "";
+
 
 /*  GST_DEBUG=3 \
 	gst-launch-1.0 videotestsrc pattern=ball background-color=0x80808080 \
@@ -165,9 +169,20 @@ void sigintHandler(int sig) {
 	{
 		log_info("[%d] Received: SIGCONT, continuing new file.", getpid());	
 		if (recording) {
+			/* Get current filename */
+			char *sinkfilename; 
+			g_object_get(filesink, "location", &sinkfilename, NULL);
+			log_info("[%d] Produced file: %s", getpid(), sinkfilename);	
 			stopRecording();
 			while ( unlinked == FALSE );
 			unlinked=FALSE;
+			/* (atomic) move file to output directory */
+			char *targetfileanddirectory = (char *)malloc(sizeof(char) * FILEDIR_MAX_LEN); 
+			memset(targetfileanddirectory,0,FILEDIR_MAX_LEN);
+			sprintf(targetfileanddirectory,"%s/%s",target_directory,sinkfilename);
+			log_info("[%d] Moving to target directory: %s", getpid(),targetfileanddirectory);	
+			rename(sinkfilename, targetfileanddirectory);
+			/* Start new recording */
 			startRecording();
 			signal(SIGCONT, sigintHandler);
 		}
@@ -188,6 +203,14 @@ int main(int argc, char *argv[])
 	log_trace("[%d] target directory (%s) ",getpid(),target_directory);
 	log_trace("[%d] audio source (%s) ",getpid(),audiosrc);
 	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] ) ", getpid());
+	
+	/* Create directories if they do not exist */
+	struct stat st = {0};
+	if (stat(target_directory, &st) == -1) {
+		log_trace("[%d] Creating directory (%s) ",getpid(),target_directory);
+		mkdir(target_directory, 0755);
+	}
+	
 	signal(SIGCONT, sigintHandler); 
 	gst_init (&argc, &argv);
 	pipeline = gst_pipeline_new(NULL);
