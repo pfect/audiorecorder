@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 	ini_sget(config, "audiorecorder", "audiosource", NULL, &audiosrc);
 	log_trace("[%d] target directory (%s) ",getpid(),target_directory);
 	log_trace("[%d] audio source (%s) ",getpid(),audiosrc);
-	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] ) ", getpid());
+	log_info("[%d] SIGCONT will cut file ( kill -18 [pid] or pkill -x -18 audiorecorder ) ", getpid());
 	
 	/* Create directories if they do not exist */
 	struct stat st = {0};
